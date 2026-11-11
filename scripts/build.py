@@ -28,7 +28,7 @@ home=f'''<main id="main"><section class="hero wrap"><div class="hero-copy"><p cl
 write('index.html',shell('从一个问题，到下一次探索', '系统组小组会研究札记：低比特训练、MoE 权重卸载、具身 RL 与原生稀疏注意力的四期会议核心思想与成员 idea。',home))
 for i,m in enumerate(meetings):
  body=(ROOT/'content'/f"{m['date']}.html").read_text(encoding='utf-8')
- headings=re.findall(r'<h([23]) id="([^"]+)">(.*?)</h[23]>',body)
+ headings=re.findall(r'<h([23])\b[^>]*\bid="([^"]+)"[^>]*>(.*?)</h\1>',body,re.S)
  toc=''.join(f'<li class="toc-level-{level}"><a href="#{id}">{re.sub("<[^>]+>","",title)}</a></li>' for level,id,title in headings)
  nav=''
  for j,label in [(i+1,'上一期 · 更早'),(i-1,'下一期 · 更新')]:
