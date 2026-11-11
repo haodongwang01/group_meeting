@@ -1,6 +1,6 @@
 # 系统组 · 研究札记
 
-四期小组会的中文静态网站：完整正文、论文插图、章节目录、主题筛选和前后期导航。无需数据库、账号或前端依赖，禁用 JavaScript 仍可阅读正文与导航。
+四期小组会的中文静态网站：核心思想、主讲人与成员 idea、可展开的论文图与数据，以及章节目录和前后期导航。无需数据库、账号或前端依赖，禁用 JavaScript 仍可阅读和展开补充资料。
 
 - 网站地址：https://system-group-notes.primleaf.chatgpt.site
 - 公开仓库：https://github.com/haodongwang01/group_meeting
@@ -20,7 +20,7 @@ python -m http.server 8080 --directory dist
 
 ```text
 content/meetings.json       日期、标题、摘要、标签、来源与封面
-content/YYYY-MM-DD.html     每期完整正文，维护入口
+content/YYYY-MM-DD.html     每期核心思想与 idea，维护入口
 scripts/build.py           标准库构建脚本
 scripts/check.py           内部链接、锚点、图片、正文与元数据检查
 dist/index.html            首页
@@ -35,9 +35,9 @@ dist/sitemap.xml           站点地图
 ## 新增一期
 
 1. 新建 `content/YYYY-MM-DD.html`，用具有唯一 `id` 的 `h2`、`h3` 标记章节。正文直接写入 HTML，外部文字必须进行 HTML 转义。
-2. 在 `content/meetings.json` 顶部增加记录，保持日期倒序；补充 `date`、`issue`、`title`、`summary`、`tags`、`type`、`source`、`cover`、`notice`。
+2. 在 `content/meetings.json` 顶部增加记录，保持日期倒序；补充 `date`、`issue`、`title`、`summary`、`tags`、`type`、`source`、`cover`、`notice`，以及 `speaker`（主讲人）、`contribution_label`（贡献类型）、`contributors`（贡献者）。
 3. 图片放进 `dist/assets/images/`。使用已有正文中的 `figure > a.zoom > img` 格式，提供有意义的 `alt` 和来源图注。`href`、`src` 从详情页使用 `../assets/images/文件名`。
-4. 区分论文结果、组内实验、待验证设想；保留实验条件、关键数字、发言归属和限制。同步更新 `SOURCES.md`。
+4. 正文先写简短的核心思想；每个 idea 用独立卡片列出提出者、具体做法与优先验证事项。区分研究方向、完整方案和讨论建议，不能把整理时补充的实验步骤当作成员原话。详细数据和原图放进原生 `details`，保留实验条件、关键数字和限制。归属不明时向会议组织者核实，同步更新 `SOURCES.md`。
 5. 运行构建和检查：
 
 ```sh

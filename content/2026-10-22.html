@@ -1,21 +1,19 @@
-<h2 id="background">研究背景与核心思路</h2>
-<p>本周组会由游嘉玮分享面向 MoE 卸载推理的新 idea：在每个 Expert 内对神经元进行聚类，以聚心近似计算为基础，再根据当前输入动态加载少量簇的原始权重。方案希望在尽量保持模型精度的同时，减少专家权重的传输与计算开销，同时也为海信项目提出一个解决方案。</p>
-<p>这一思路关注显存受限场景下的权重搬运问题。MoE 每个 token 只激活部分专家，但按整个专家加载权重仍可能带来较大的 I/O 开销。因此，方案进一步细化到专家内部，以神经元簇作为选择和加载单位。</p>
-<h2 id="method">神经元聚类与动态权重加载</h2>
-<ol>
-<li><strong>神经元表示：</strong>同一神经元对应 gate、up 矩阵的同一行，以及 down 矩阵的对应列。将三个权重向量分别进行 L2 归一化，再拼接成完整特征，用于衡量神经元之间的相似性。</li>
-<li><strong>离线聚类：</strong>仅在同一个 Expert 内对神经元分组，构建簇及其聚心。汇报中比较了每个 Expert 划分为 32 簇和 64 簇的配置，为推理阶段的近似计算与按簇加载提供基础。</li>
-<li><strong>在线选择：</strong>利用聚心与当前输入进行近似计算，并按重要性选择需要恢复真实权重的簇。</li>
-<li><strong>混合计算：</strong>加载选中簇内神经元的原始权重并执行计算，其余簇保留聚心近似，再合成 Expert 输出。簇划分预先确定，需要加载的簇随输入变化，从而在精度与权重传输量之间进行权衡。</li>
-</ol>
-<figure><a class="zoom" href="../assets/images/2026-10-22-clustering.png"><img src="../assets/images/2026-10-22-clustering.png" alt="Expert 内神经元聚类：gate 和 up 的对应行与 down 的对应列，经 L2 归一化、拼接后聚类成多个簇" loading="lazy"></a><figcaption>图 1　Expert 内神经元聚类示意。来源：2026 年 10 月 22 日小组会会议总结，游嘉玮汇报。</figcaption></figure>
-<h2 id="experiment">初步实验结果</h2>
-<p class="note"><strong>组内初步实验。</strong>原记录未注明模型规模、硬件、样本量及各配置细节；下列数字按会议记录保留，不作为普遍性能保证。“精度下降”的统计口径未进一步说明。</p>
-<p>在延迟方面，部分拉取专家权重在减少 80% 的 IO 时间的同时降低了 70% 的计算开销。在精度方面，新方法相比 full 方法，在 Ruler 数据集、LongBench V2 数据集、GSM8K 数据集和 MMLU-Pro 数据集分别下降 0.5%、1.19%、0%、0%，相比于当前方法超过 5% 的精度下降，该方法在精度方面更具优势。</p>
-<h2 id="discussion">建设性意见和后续改进方向</h2>
-<ol>
-<li><strong>聚类方法的有效性（刘千里）：</strong>建议验证 Expert 内神经元之间是否确实具有足够的相似性，并与直接选取部分重要神经元进行计算的方案对比，判断不使用聚心近似是否也能取得相近效果，从而明确神经元聚类与聚心近似计算的必要性。</li>
-<li><strong>与 LoRA 低秩分解方法的区别（刘千里）：</strong>建议进一步说明本方法与 LoRA 所采用的低秩参数化思路在参数表示、计算过程及优化目标上的区别，明确神经元聚类与聚心近似计算的特点，及本方法的优势和适用场景。</li>
-<li><strong>近似计算结果的等价性（胡揚嘉）：</strong>公式推导表明，聚心近似计算与原始计算并不严格等价，存在一定误差。建议在更多数据集和任务上开展实验，分析近似误差对模型表现的影响，验证本方法在不同场景下的稳定性。</li>
-</ol>
-<p>本次交流进一步梳理了可探索的优化方向与待验证的问题，为完善游嘉玮的新 idea 提供了具体参考。</p>
+<h2 id="background">核心思想</h2>
+<p class="core-statement">把权重加载单位从“整个专家”缩小到“神经元簇”：大部分簇用聚心近似，只为当前输入的重要簇加载真实权重。</p>
+<p class="inline-credit">方案提出 <strong>游嘉玮</strong></p>
+<ol id="method" class="core-points"><li><strong>离线分簇：</strong>在每个 Expert 内，将 gate、up 的对应行与 down 的对应列分别 L2 归一化、拼接，再聚类；汇报比较了 32 / 64 簇。</li><li><strong>在线选簇：</strong>根据当前输入与聚心的近似计算结果，选出需要恢复真实权重的簇。</li><li><strong>混合计算：</strong>选中簇用原始权重，其余用聚心近似，合成 Expert 输出，权衡精度与权重搬运量。</li></ol>
+<h2 id="discussion">Idea 完善与成员贡献</h2>
+<p class="section-intro">主方案由游嘉玮提出，以下是讨论中形成的验证与改进建议。</p>
+<section class="idea-card" aria-labelledby="clustering-validation">
+<p class="idea-byline"><span>建议提出</span><strong>刘千里</strong></p>
+<h3 id="clustering-validation">证明“聚类 + 聚心近似”确有必要</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>检查专家内神经元相似性，并加入“直接选取重要神经元、无需聚心近似”的对照。</dd></div><div><dt>先验证</dt><dd>在相同权重加载预算下，比较两种方法的精度与计算开销，判断聚心近似带来的额外价值。</dd></div></dl>
+</section><section class="idea-card" aria-labelledby="lora-comparison">
+<p class="idea-byline"><span>建议提出</span><strong>刘千里</strong></p>
+<h3 id="lora-comparison">讲清与 LoRA 低秩参数化的区别</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>从参数表示、计算过程、优化目标三个方面，对照神经元聚类与 LoRA 低秩参数化。</dd></div><div><dt>先验证</dt><dd>明确本方案的优势来自什么，以及适用于哪些显存受限推理场景。</dd></div></dl>
+</section><section class="idea-card" aria-labelledby="approximation-error">
+<p class="idea-byline"><span>关键质疑与建议</span><strong>胡揚嘉</strong></p>
+<h3 id="approximation-error">把“近似不等价”变成可测的误差</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>明确聚心计算与原始计算并不严格等价，分析近似误差对模型输出的影响。</dd></div><div><dt>先验证</dt><dd>扩展数据集与任务，检查误差是否集中于某些场景，并验证稳定性。</dd></div></dl>
+</section><h2 id="experiment" class="support-heading">补充图与数据</h2><details class="evidence"><summary>展开初步实验数字与神经元聚类图<span aria-hidden="true">＋</span></summary><div class="evidence-body"><p><strong>组内初步实验：</strong>原记录报告 IO 时间减少 80%、计算开销降低 70%；相对 full 方法，Ruler、LongBench V2、GSM8K、MMLU-Pro 的精度分别下降 0.5%、1.19%、0%、0%，对照方法下降超过 5%。</p><p class="evidence-note">原记录未完整注明模型、硬件、样本量及“精度下降”的统计口径。这些数字仍需完整配置下的复核。方案面向显存受限推理，也是对海信项目的一项探索。</p><figure><a class="zoom" href="../assets/images/2026-10-22-clustering.png"><img src="../assets/images/2026-10-22-clustering.png" alt="Expert 内神经元聚类：gate 和 up 的对应行与 down 的对应列，经 L2 归一化、拼接后聚类成多个簇" loading="lazy"></a><figcaption>图 1　Expert 内神经元聚类示意。来源：2026 年 10 月 22 日小组会会议总结，游嘉玮汇报。</figcaption></figure></div></details>

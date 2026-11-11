@@ -1,35 +1,18 @@
-<p class="eyebrow">01 / HiSparse</p>
-<h2 id="section-1">完整历史与 GPU 热工作集分离</h2>
-<p>原生稀疏模型每步只使用少量 KV，但完整历史仍需保留。保留热 KV 并按需补齐当前所选记录，可以减少 HBM 常驻量。</p>
-<figure><a class="zoom" href="../assets/images/2026-11-05-image1.png"><img src="../assets/images/2026-11-05-image1.png" alt="HiSparse 原图 6  近期选中的 KV 在后续解码中仍有复用机会" loading="lazy"></a><figcaption>HiSparse 原图 6  近期选中的 KV 在后续解码中仍有复用机会</figcaption></figure>
-<p>核心观察　PPT 所引轨迹中，仅暂存当前 top-k 时 miss 约 30%；容量为 2k 并使用 LRU 后，hit 约 87%。这些数字对应特定模型与选择轨迹。</p>
-<figure><a class="zoom" href="../assets/images/2026-11-05-image2.png"><img src="../assets/images/2026-11-05-image2.png" alt="HiSparse 原图 2  主存保留全量 KV  GPU 按需补齐热工作集" loading="lazy"></a><figcaption>HiSparse 原图 2  主存保留全量 KV  GPU 按需补齐热工作集</figcaption></figure>
-<p>核心设计　DRAM 保存完整历史，GPU 按请求、按层缓存热 KV；依据 Indexer 结果完成命中检查、替换与 miss 拉取，再执行 attention。</p>
-<p>尚未解决　当 DRAM 容量也受限时，需要继续向 SSD 扩展；但逐层稀疏 miss 会产生小随机读。精确预取依赖模型明确共享的选择索引，不能只凭层间相似性保证。</p>
-<p class="key">研究启发：原生稀疏解码的 SSD 卸载，需要同时减少 miss 数量与每次 miss 的读取成本。</p>
-<p class="eyebrow">02 / FlatCake</p>
-<h2 id="section-2">把连续恢复与就绪请求调度结合起来</h2>
-<p>按会话连续组织 KV，并让就绪请求绕过仍在恢复的请求，减少碎片读取与队首阻塞。</p>
-<p>核心观察　低复用负载存在大量一次性块；高复用的 Coding Agent 负载中，多会话长前缀仍可能超出 DRAM。两类负载都需要有效利用 SSD。</p>
-<figure><a class="zoom" href="../assets/images/2026-11-05-image3.png"><img src="../assets/images/2026-11-05-image3.png" alt="FlatCake 原图 5  按会话与层组织布局  合并读取并通过 GDS 恢复" loading="lazy"></a><figcaption>FlatCake 原图 5  按会话与层组织布局  合并读取并通过 GDS 恢复</figcaption></figure>
-<p>连续读取　会话数据集中存放、层内连续，减少零碎 I/O；GDS 减少主存中转。大块是否更快，仍取决于有效读取比例及 SSD、PCIe 等实际瓶颈。</p>
-<figure><a class="zoom" href="../assets/images/2026-11-05-image4.png"><img src="../assets/images/2026-11-05-image4.png" alt="FlatCake 原图 4  SSD 准备与 DRAM 就绪请求分开调度" loading="lazy"></a><figcaption>FlatCake 原图 4  SSD 准备与 DRAM 就绪请求分开调度</figcaption></figure>
-<p>就绪调度　分离 SSD-preparing 与 DRAM-ready 请求，并考虑等待时间。迁移到活跃解码后，还需检查当前层 KV 是否已进入 HBM、计算依赖是否满足。</p>
-<p class="key">研究启发：完整前缀的连续恢复不能直接套用到逐层稀疏访问。未来要重新匹配读取粒度与计算就绪条件。</p>
-<p class="eyebrow">03 / RESEARCH IDEAS</p>
-<h2 id="section-3">三个值得探索的切入点</h2>
-<p class="note">以下为会上提出的研究设想，收益与参数仍需实验验证。</p>
-<p>在保持原生稀疏选择与注意力语义的前提下，验证布局、缓存和调度的收益。</p>
-<h3 id="idea-29">A 用局部热点缓存减少 SSD 读取量</h3>
-<p>核心思想　让 DRAM 保留各请求经常被重新选中的 KV，用更少的缓存支撑更多活跃请求；未缓存的历史仍可从 SSD 获取。</p>
-<figure class="diagram"><div class="table-scroll" tabindex="0" role="region" aria-label="研究设想示意"><table><tr><td>HBM当前热工作集</td><td>DRAM跨步复用的热点</td><td>SSD历史 KV 后备存储</td></tr></table></div><figcaption>研究设想示意，依据会议总结原表重排；非实测结果。</figcaption></figure>
-<p class="note">关键验证：10%–20% 是会上提出的起始缓存预算，尚非已证实的热点比例。测量热点是否稳定，以及每 token 的 SSD 读取字节数和可接纳并发是否改善。</p>
-<h3 id="idea-33">B 用连续块降低剩余 miss 的读取成本</h3>
-<p>核心思想　按选中 KV 的物理页合并 I/O，并探索稳定共访问数据的连续布局，权衡少发读取请求与多读额外数据。</p>
-<figure class="diagram"><div class="table-scroll" tabindex="0" role="region" aria-label="研究设想示意"><table><tr><td>逐点读取</td><td>读取选中的离散 KV</td><td>小 I/O 较多</td></tr><tr><td>合并读取</td><td>读取覆盖这些 KV 的连续块</td><td>I/O 减少  可能多读</td></tr></table></div><figcaption>研究设想示意，依据会议总结原表重排；非实测结果。</figcaption></figure>
-<p class="note">关键验证：改变块大小与队列深度，测有效带宽、读放大和重组成本。“64 token × 32 层”只是候选传输单元，是否饱和带宽、是否值得跨层读取均需实测。</p>
-<h3 id="idea-37">C 用已就绪计算覆盖 SSD 拉取等待</h3>
-<p>核心思想　请求 A 读取 SSD 时执行依赖已满足的请求 B；按当前层的数据准备状态推进任务，同时限制长请求等待。</p>
-<figure class="diagram"><div class="table-scroll" tabindex="0" role="region" aria-label="研究设想示意"><table><tr><td>请求 A</td><td>SSD 读取与必要搬运</td><td>KV 就绪后继续 A</td></tr><tr><td>GPU</td><td>执行 HBM 已就绪请求 B</td><td>执行 A 的 attention</td></tr></table></div><figcaption>研究设想示意，依据会议总结原表重排；非实测结果。</figcaption></figure>
-<p class="note">关键验证：DRAM 中有 KV 仍需 H2D，后续层仍受前层依赖约束。比较可重叠计算与实际 I/O 时长，并检查带宽争用、TPOT 尾延迟和吞吐；投机解码的覆盖能力另行测量。</p>
-<p class="key">验证顺序：先回放原生选择轨迹，确认热点与物理页分布；再测缓存和读取；最后加入调度，验证端到端吞吐与 TPOT。</p>
+<h2 id="core">核心思想</h2>
+<div class="core-grid"><section><h3 id="section-1">HiSparse · 完整历史与热 KV 分离</h3><p>DRAM 保存完整历史，GPU 只缓存当前常用的 KV；根据 Indexer 的选择补齐 miss，再执行 attention，降低 HBM 常驻量。</p></section><section><h3 id="section-2">FlatCake · 连续恢复与就绪调度协同</h3><p>按会话和层连续组织 KV，合并读取；让已就绪请求先执行，减少零碎 I/O 与队首阻塞。</p></section></div>
+<p class="core-takeaway">下一步：把思路延伸到 SSD 上的逐层稀疏访问，同时减少 miss 次数、单次读取成本和等待时间。</p>
+<h2 id="section-3">Idea 与成员贡献</h2>
+<p class="section-intro">共同讨论：<strong>游嘉玮、刘千里</strong>。以下按方向归属整理，均需保持原生稀疏选择与注意力语义。</p>
+<section class="idea-card" aria-labelledby="idea-29">
+<p class="idea-byline"><span>Idea 方向归属</span><strong>游嘉玮</strong></p>
+<h3 id="idea-29">用 DRAM 热点缓存减少 SSD 读取量</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>让 DRAM 保留各请求经常被重新选中的 KV，SSD 保存未缓存的历史；先以 10%–20% 缓存预算回放选择轨迹。</dd></div><div><dt>先验证</dt><dd>观察热点是否稳定，测量每 token 的 SSD 读取字节数和可接纳并发。10%–20% 是起始预算，并非已证实的热点比例。</dd></div></dl>
+</section><section class="idea-card" aria-labelledby="idea-33">
+<p class="idea-byline"><span>Idea 方向归属</span><strong>游嘉玮</strong></p>
+<h3 id="idea-33">按连续块合并剩余 miss 的读取</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>按选中 KV 的物理页合并 I/O，探索稳定共访问数据的连续布局；改变块大小与队列深度。</dd></div><div><dt>先验证</dt><dd>同时测有效带宽、读放大和重组成本。“64 token × 32 层”仅是候选单元，跨层读取是否值得需要实测。</dd></div></dl>
+</section><section class="idea-card" aria-labelledby="idea-37">
+<p class="idea-byline"><span>Idea 方向归属</span><strong>刘千里</strong></p>
+<h3 id="idea-37">用已就绪请求的计算覆盖 SSD 等待</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>请求 A 拉取 SSD 时，执行当前层 KV 已进入 HBM、计算依赖已满足的请求 B；按就绪状态调度，并限制长请求等待。</dd></div><div><dt>先验证</dt><dd>比较可重叠计算与实际 I/O 时长，测量带宽争用、吞吐和 TPOT 尾延迟；DRAM 命中后的 H2D 也要计入。</dd></div></dl>
+<p class="idea-footnote">后续层仍依赖前层；投机解码能覆盖多少等待，另行测量。</p></section><h2 id="paper-evidence" class="support-heading">补充图与数据</h2><details class="evidence"><summary>展开 HiSparse / FlatCake 数据与 4 张原图<span aria-hidden="true">＋</span></summary><div class="evidence-body"><p><strong>HiSparse 引用轨迹：</strong>只暂存当前 top-k 时 miss 约 30%；容量为 2k 并使用 LRU 后 hit 约 87%，数字依赖特定模型和轨迹。逐层 miss 延伸至 SSD 后会产生小随机读；精确预取需要模型明确共享的选择索引，不能只凭层间相似性保证。</p><figure><a class="zoom" href="../assets/images/2026-11-05-image1.png"><img src="../assets/images/2026-11-05-image1.png" alt="HiSparse 原图 6  近期选中的 KV 在后续解码中仍有复用机会" loading="lazy"></a><figcaption>HiSparse 原图 6  近期选中的 KV 在后续解码中仍有复用机会</figcaption></figure><figure><a class="zoom" href="../assets/images/2026-11-05-image2.png"><img src="../assets/images/2026-11-05-image2.png" alt="HiSparse 原图 2  主存保留全量 KV  GPU 按需补齐热工作集" loading="lazy"></a><figcaption>HiSparse 原图 2  主存保留全量 KV  GPU 按需补齐热工作集</figcaption></figure><p><strong>FlatCake 的启发与边界：</strong>低复用的一次性块和高复用 Coding Agent 的长前缀都可能需要 SSD。GDS 可减少主存中转，但整段前缀恢复不能直接套用到逐层稀疏访问；大块读取是否划算，要看有效读取比例及 SSD、PCIe 瓶颈。</p><figure><a class="zoom" href="../assets/images/2026-11-05-image3.png"><img src="../assets/images/2026-11-05-image3.png" alt="FlatCake 原图 5  按会话与层组织布局  合并读取并通过 GDS 恢复" loading="lazy"></a><figcaption>FlatCake 原图 5  按会话与层组织布局  合并读取并通过 GDS 恢复</figcaption></figure><figure><a class="zoom" href="../assets/images/2026-11-05-image4.png"><img src="../assets/images/2026-11-05-image4.png" alt="FlatCake 原图 4  SSD 准备与 DRAM 就绪请求分开调度" loading="lazy"></a><figcaption>FlatCake 原图 4  SSD 准备与 DRAM 就绪请求分开调度</figcaption></figure><p class="evidence-note">验证顺序：先回放原生选择轨迹，确认热点与物理页分布；再测缓存和读取；最后加入调度，验证端到端吞吐与 TPOT。</p></div></details>

@@ -1,40 +1,17 @@
-<h2 id="dsec">DSec：让海量有状态沙盒低成本地持续存在</h2>
-<p class="key">把环境构建、资源占用与执行状态分开管理：环境可复用，资源按需用，Rollout 状态不依赖 GPU 训练作业的生命周期。</p>
-<figure><a class="zoom" href="../assets/images/dsec_cpu_memory_fig3.png"><img src="../assets/images/dsec_cpu_memory_fig3.png" alt="DSec 图 3：沙盒 CPU 间歇活跃，而内存仍持续驻留" loading="lazy"></a><figcaption>DSec 原图 3（第 10 页）：CPU 间歇忙，内存持续驻留。</figcaption></figure>
-<p><strong>核心观察：</strong>沙盒常在等待模型生成下一步操作，但文件、进程与内存状态不能随之丢弃。</p>
-<p><strong>资源错配：</strong>约 90% 的沙盒，平均 CPU 用量不超过申请量的 5%；低 CPU 活跃度并不等于低状态保持成本。<a href="#references">[1]</a></p>
-<p><strong>环境拆开复用：</strong>Base、Workspace 与 Toolkit 独立版本化，运行时组合；更新一个工具层，不必重建所有任务镜像。<a href="#references">[1]</a></p>
-<figure><a class="zoom" href="../assets/images/dsec_layers_fig4.png"><img src="../assets/images/dsec_layers_fig4.png" alt="DSec 图 4：Base、Workspace 和 Toolkit 独立分层、按需组合" loading="lazy"></a><figcaption>DSec 原图 4（第 11 页）：从整体镜像重建，变成独立层更新与组合。</figcaption></figure>
-<p><strong>资源按需占用：</strong>镜像数据从 3FS 按访问需要加载；配合内存共享、回收与 CPU 服务质量控制，提高沙盒部署密度。<a href="#references">[1]</a></p>
-<p><strong>状态独立保留：</strong>将 Agent Loop 的执行与管理移到可抢占 GPU 池之外。旧方案中沙盒虽仍存在，Agent Loop 却会丢失；新方案由 Worker 与 Agent Sandbox 共同保留 Rollout 状态，训练作业恢复后重新连接。<a href="#references">[1]</a></p>
-<p class="key">研究启发：计算资源的生命周期，不必等于有状态环境的生命周期。</p>
-<h2 id="ebrl">EBRL：让仿真、动作生成与训练持续重叠</h2>
-<p class="key">只让 Rollout 与 Training 异步还不够：还要消除环境之间不必要的同步，并把资源分配细化到 CPU 核与 GPU 逻辑算力配额。</p>
-<p><strong>核心问题：</strong>整卡独占与批量同步让快环境等慢环境、推理等仿真；各阶段需求还会随训练进展改变，固定分配容易失衡。<a href="#references">[2]</a></p>
-<figure><a class="zoom" href="../assets/images/ebrl_pipeline_fig9.png"><img src="../assets/images/ebrl_pipeline_fig9.png" alt="EBRL 图 9：Rollout 和训练跨迭代重叠，仿真和动作生成跨环境组重叠" loading="lazy"></a><figcaption>EBRL 原图 9（第 6 页）：跨迭代、跨环境组的重叠。</figcaption></figure>
-<p><strong>跨迭代：</strong>采集新轨迹的同时，使用先前轨迹更新模型。</p>
-<p><strong>跨环境组：</strong>一组执行已有动作，另一组生成下一段动作，让仿真与动作生成重叠。<a href="#references">[2]</a></p>
-<figure><a class="zoom" href="../assets/images/ebrl_step_fig10.png"><img src="../assets/images/ebrl_step_fig10.png" alt="EBRL 图 10：Action Chunk 内各环境独立推进，等待新动作时释放 CPU 核" loading="lazy"></a><figcaption>EBRL 原图 10（第 6 页）：消除 Action Chunk 内的逐步屏障。</figcaption></figure>
-<p><strong>跨仿真步：</strong>各环境已拿到一段动作，可在段内独立推进，不必每步等待其他环境。</p>
-<p><strong>释放即调度：</strong>等待新动作的环境释放 CPU 核，交给其他就绪环境；优先调度预计较慢的步骤。<a href="#references">[2]</a></p>
-<p><strong>资源随瓶颈调整：</strong>基于离线 Profile 与运行时吞吐反馈，选择 CPU 核数、GPU 逻辑 SM 配额和 Batch Size，平衡仿真、生成、训练的处理能力。默认通过 MPS 支持共享执行。<a href="#references">[2]</a></p>
-<p><strong>依赖仍需保留：</strong>环境只能在已有动作范围内提前推进；下一段动作仍依赖新观测与模型生成。异步不是跳过因果关系。<a href="#references">[2]</a></p>
-<p class="note"><strong>论文结果：</strong>所测配置的端到端轨迹吞吐达到基线的 1.30–3.47 倍；收益依赖具体模型、仿真器与硬件。<a href="#references">[2]</a></p>
-<p class="key">研究启发：不仅要让更多任务并行，还要让可执行工作与合适的资源及时匹配。</p>
-<h2 id="ideas">三个值得探索的切入点</h2>
-<p class="note">以下均为研究设想；图中布局与收益方向是概念示意，不代表已实现或实测结果。示意图依据会议 TeX 原图改为网页排版。</p>
-<h3 id="state">A　有状态仿真环境的弹性暂停与恢复</h3>
-<p><strong>核心思想：</strong>将仿真状态与计算资源解耦：在一致性边界保存动态物理状态、随机状态和 Rollout 进度，资源恢复后从断点继续，而不是重新初始化并重跑轨迹。</p>
-<figure class="diagram"><div class="flow"><b>重启方式</b><span>已执行的仿真步骤</span><i>→</i><span class="warm">中断</span><i>→</i><span>重新初始化并重跑</span></div><div class="flow"><b>研究目标</b><span>已执行的仿真步骤</span><i>→</i><span class="warm">状态快照</span><i>→</i><span>恢复状态，继续后续步骤</span></div><figcaption>概念示意 A：保存状态与断点恢复。</figcaption></figure>
-<p><strong>新问题与难点：</strong>从 DSec 的 Agent 状态扩展到物理仿真状态；关键是哪些内部状态可恢复、恢复后是否足够一致，以及保存成本是否低于重跑成本。</p>
-<h3 id="gpu">B　感知 RT 渲染与数据搬运的异构 GPU 调度</h3>
-<p><strong>核心思想：</strong>不只按 SM 配额分配资源，而是联合考虑 RT 渲染需求、SM、显存与跨设备传输，动态选择仿真、推理、训练的同卡共享或跨卡拆分。</p>
-<figure class="diagram"><div class="flow"><b>渲染较重</b><span>RTX：渲染</span><i>↔</i><span>计算型 GPU：推理 + 训练</span></div><div class="flow"><b>渲染较轻</b><span>RTX：渲染 + 部分推理</span><i>↔</i><span>计算型 GPU：训练</span></div><figcaption>概念示意 B：依据渲染与通信开销选择计算布局。</figcaption></figure>
-<p><strong>新问题与难点：</strong>EBRL 已测试 RTX + A100 混合配置；新意不在“使用异构 GPU”，而在渲染干扰与通信成本驱动的动态布局。RT 需求感知也不等于已能直接切分 RT Core。<a href="#references">[2]</a></p>
-<h3 id="cache">C　可组合、可复用的仿真场景缓存</h3>
-<p><strong>核心思想：</strong>共享静态场景资产与可复用的初始化产物，为每个环境保留独立动态状态；按任务切换模式缓存或预加载，减少场景加载和重复初始化。</p>
-<figure class="diagram"><div class="flow"><span>共享层<br>场景资产 / 可复用初始化产物</span><i>→</i><span>任务 1：独立动态状态<br>任务 2：独立动态状态</span></div><figcaption>概念示意 C：共享静态资产，隔离动态状态。</figcaption></figure>
-<p><strong>新问题与难点：</strong>从 DSec 的软件镜像层扩展到仿真场景生命周期；核心是跨任务能共享什么、版本变化如何失效，以及收益能否超越普通镜像缓存与单次进程内复用。</p>
-<p class="key">三个方向的分工：A 管“状态如何留下”，B 管“计算放到哪里”，C 管“环境如何复用”。</p>
-<h2 id="references">论文来源</h2>
-<ol><li>Jialiang Huang et al. <cite>DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale</cite>。所提供论文，重点见第 4–6 节。</li><li>Liang Mi et al. <cite>EBRL: Asynchronous Embodied RL by Multi-Grained Resource Management</cite>。所提供论文，重点见第 3–6 节。</li></ol>
+<h2 id="core">核心思想</h2>
+<div class="core-grid"><section><h3 id="dsec">DSec · 状态留下，资源按需用</h3><p>拆开管理环境、资源与执行状态：镜像层可复用，CPU / 内存按需占用，Rollout 状态在 GPU 训练作业被抢占后仍能保留并重连。</p></section><section><h3 id="ebrl">EBRL · 让可执行的工作持续重叠</h3><p>让仿真、动作生成与训练异步推进，并动态分配 CPU 核、GPU 逻辑 SM 配额和批大小，减少环境间等待与资源失衡。</p></section></div>
+<h2 id="ideas">Idea 与成员贡献</h2>
+<p class="section-intro">三个方向分别处理状态保存、计算布局和环境复用，均为待验证设想。</p>
+<section class="idea-card" aria-labelledby="state">
+<p class="idea-byline"><span>Idea 提出</span><strong>王浩东</strong></p>
+<h3 id="state">让有状态仿真环境支持暂停与恢复</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>在一致性边界保存动态物理状态、随机状态与 Rollout 进度；资源恢复后从断点继续，避免重新初始化并重跑轨迹。</dd></div><div><dt>先验证</dt><dd>列出必须保存的内部状态，检验恢复前后的一致性，并比较快照成本与重跑成本。</dd></div></dl>
+</section><section class="idea-card" aria-labelledby="gpu">
+<p class="idea-byline"><span>Idea 提出</span><strong>米家志</strong></p>
+<h3 id="gpu">让 GPU 调度感知渲染与传输成本</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>联合考虑 RT 渲染、SM、显存与跨设备传输，动态选择仿真、推理、训练的同卡共享或跨卡拆分。</dd></div><div><dt>先验证</dt><dd>在渲染较重与较轻的任务上，对比不同布局的吞吐、渲染干扰与搬运开销。</dd></div></dl>
+<p class="idea-footnote">EBRL 已测试 RTX + A100；新意在动态布局。感知 RT 需求不等于能直接切分 RT Core。</p></section><section class="idea-card" aria-labelledby="cache">
+<p class="idea-byline"><span>Idea 提出</span><strong>林健</strong></p>
+<h3 id="cache">复用场景资产，隔离每个环境的动态状态</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>共享静态场景资产和可复用的初始化产物，为各环境保留独立动态状态；按任务切换模式缓存或预加载。</dd></div><div><dt>先验证</dt><dd>明确可共享对象及版本失效规则，再与普通镜像缓存、单进程复用比较加载与初始化时间。</dd></div></dl>
+</section><h2 id="paper-evidence" class="support-heading">补充图与数据</h2><details class="evidence"><summary>展开论文观察、性能结果与 4 张机制图<span aria-hidden="true">＋</span></summary><div class="evidence-body"><p><strong>DSec 观察：</strong>约 90% 的沙盒平均 CPU 使用量不超过申请量的 5%，但状态仍需驻留。Base、Workspace、Toolkit 独立组合，镜像数据从 3FS 按需加载，配合内存共享、回收与 CPU 服务质量控制。</p><figure><a class="zoom" href="../assets/images/dsec_cpu_memory_fig3.png"><img src="../assets/images/dsec_cpu_memory_fig3.png" alt="DSec 图 3：沙盒 CPU 间歇活跃，而内存仍持续驻留" loading="lazy"></a><figcaption>DSec 原图 3（第 10 页）：CPU 间歇忙，内存持续驻留。</figcaption></figure><figure><a class="zoom" href="../assets/images/dsec_layers_fig4.png"><img src="../assets/images/dsec_layers_fig4.png" alt="DSec 图 4：Base、Workspace 和 Toolkit 独立分层、按需组合" loading="lazy"></a><figcaption>DSec 原图 4（第 11 页）：从整体镜像重建，变成独立层更新与组合。</figcaption></figure><p><strong>EBRL 机制：</strong>跨迭代重叠采集与训练，跨环境组重叠仿真与动作生成；Action Chunk 内各环境独立推进，等待新动作时释放 CPU，并优先调度预计较慢的步骤。结合离线 Profile 与运行时反馈调整资源，默认以 MPS 共享执行。</p><figure><a class="zoom" href="../assets/images/ebrl_pipeline_fig9.png"><img src="../assets/images/ebrl_pipeline_fig9.png" alt="EBRL 图 9：Rollout 和训练跨迭代重叠，仿真和动作生成跨环境组重叠" loading="lazy"></a><figcaption>EBRL 原图 9（第 6 页）：跨迭代、跨环境组的重叠。</figcaption></figure><figure><a class="zoom" href="../assets/images/ebrl_step_fig10.png"><img src="../assets/images/ebrl_step_fig10.png" alt="EBRL 图 10：Action Chunk 内各环境独立推进，等待新动作时释放 CPU 核" loading="lazy"></a><figcaption>EBRL 原图 10（第 6 页）：消除 Action Chunk 内的逐步屏障。</figcaption></figure><p><strong>论文结果：</strong>所测配置端到端轨迹吞吐为基线的 1.30–3.47 倍。下一段动作仍依赖新观测和模型生成，不能跳过因果依赖。</p><p id="references" class="evidence-note">来源：Jialiang Huang et al., <cite>DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale</cite>；Liang Mi et al., <cite>EBRL: Asynchronous Embodied RL by Multi-Grained Resource Management</cite>。均依据所提供论文版本第 4–6 节（EBRL 另含第 3 节）。</p></div></details>

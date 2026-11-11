@@ -1,17 +1,18 @@
-<h2 id="section-1">论文分享与研究讨论</h2>
-<p>本次系统组小组会由 胡揚嘉 主讲，分享 FourTune 与低比特训练相关工作。胡揚嘉、刘千里等围绕前后向量化差异、研究场景和实验评价展开讨论。本次为论文分享与选题探索，尚未形成经过验证的新方案。</p>
-<p>汇报从推理侧 QuaRot 的旋转和 SVDQuant 的低秩分解出发，说明 QLoRA 主要降低权重存储成本，而非直接执行低比特计算，并以 Quartet 对照反向量化路线。FourTune 采用冻结低比特主干、冻结高精度稳定器与可训练 LoRA 三分支，通过内核融合和块级量化减少数据搬运、支持前后向权重访问。</p>
-<h2 id="section-2">论文结果与分析</h2>
-<p>汇报引用的结果显示，相对 BF16 LoRA，FourTune 的显存占用约降至 1/2.25，端到端加速约 2.27 倍；相对 QLoRA，显存增加约 15%，换取约 2.79 倍加速。稳定器消融中，无稳定器基线的梯度范数在后期快速增大，加入稳定器后相对平稳。以上均为论文结果，非组内实测。</p>
-<figure><a class="zoom" href="../assets/images/2026-10-15-image1.png"><img src="../assets/images/2026-10-15-image1.png" alt="图 1　稳定器对训练中梯度范数的影响。来源：胡揚嘉 汇报 PPT（FourTune 图 8）。" loading="lazy"></a><figcaption>图 1　稳定器对训练中梯度范数的影响。来源：胡揚嘉 汇报 PPT（FourTune 图 8）。</figcaption></figure>
-<h2 id="section-3">建设性意见与后续改进方向</h2>
-<p>FourTune 的效率提升与稳定器消融，将讨论引向了一个更值得深入的问题：低比特训练中，究竟哪些信息必须保住，哪些计算和数据可以大胆压缩？ 围绕这一问题，本次讨论可以进一步凝练出三个研究切入点。</p>
-<h3 id="idea-10">1. 前向保住输出，后向保住学习方向——刘千里提出研究方向。</h3>
-<p>前向计算决定模型如何回答，反向计算决定模型如何学习。如果用同一种误差标准约束两者，就可能忽略训练中真正需要保护的信息：数值上的微小偏差，是否改变了参数更新的方向？这一方向的突破口，是让量化目标与前后向各自承担的任务对应起来。</p>
-<p class="key">候选 idea：前向以输出重构误差为目标，后向以参数更新方向偏差为目标，分别校准量化参数，让有限精度用在维持预测质量和学习方向上。</p>
-<h3 id="idea-13">2. 利用循环结构，让上一轮的量化误差成为下一轮的纠偏信号——米家志提出关注新结构的方向。</h3>
-<p>Loop 结构让中间状态反复参与计算，也带来了一个值得追踪的问题：单轮可以接受的量化误差，会不会在多轮计算后改变模型行为？循环结构既提供了误差传播的路径，也可能提供持续纠偏的机会，由此可以进一步探索跨轮补偿机制。</p>
-<p class="key">候选 idea：保留每轮状态量化产生的残差，并将其反馈到下一轮量化过程，尝试用跨轮误差补偿抑制循环计算中的精度损失。</p>
-<h3 id="idea-16">3. 让每一份显存都留给最值得保留的数据——林健提出量化与卸载结合的方向。</h3>
-<p>围绕会上提到的 Engram 与端侧部署，讨论进一步触及了容量与速度之间的矛盾：卸载能够腾出显存，数据搬运却可能拖慢执行；量化能够减少搬运量，不同数据对精度损失的承受能力又不相同。这里的研究机会，是把“存多少比特”和“存在哪里”放进同一个决策中。</p>
-<p class="key">候选 idea：根据访问频率与量化敏感度联合分配位宽和存储位置，让高频且敏感的数据以较高精度驻留 GPU，低频且不敏感的数据以低比特形式卸载。</p>
+<h2 id="section-1">核心思想</h2>
+<p class="core-statement">用低比特主干承担主要计算，用高精度稳定器保住训练稳定性，再通过 LoRA 学习更新。</p>
+<ul class="core-points"><li><strong>三分支协作：</strong>低比特主干与高精度稳定器冻结，只训练 LoRA。</li><li><strong>效率来自计算与搬运：</strong>内核融合、块级量化减少数据搬运，同时支持前后向权重访问。</li><li><strong>讨论焦点：</strong>哪些信息必须保住，哪些计算与数据可以进一步压缩？</li></ul>
+<h2 id="section-3">Idea 与成员贡献</h2>
+<p class="section-intro">以下为研究方向；具体方案据讨论整理，尚待验证。</p>
+<section class="idea-card" aria-labelledby="idea-10">
+<p class="idea-byline"><span>方向提出</span><strong>刘千里</strong></p>
+<h3 id="idea-10">前向保输出，后向保学习方向</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>分别校准前后向量化参数：前向最小化输出重构误差，后向约束参数更新方向偏差。</dd></div><div><dt>先验证</dt><dd>比较统一量化与分别校准时的输出质量、更新方向偏差和训练稳定性。</dd></div></dl>
+</section><section class="idea-card" aria-labelledby="idea-13">
+<p class="idea-byline"><span>方向提出</span><strong>米家志</strong></p>
+<h3 id="idea-13">把上一轮量化误差用于下一轮纠偏</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>面向 Loop 结构，保留每轮状态量化产生的残差，反馈到下一轮量化过程。</dd></div><div><dt>先验证</dt><dd>观察误差是否随循环轮数累积，以及跨轮补偿能否减少最终输出偏差。</dd></div></dl>
+<p class="idea-footnote">原记录贡献：提出关注新结构；跨轮残差补偿为据此整理的候选方案。</p></section><section class="idea-card" aria-labelledby="idea-16">
+<p class="idea-byline"><span>方向提出</span><strong>林健</strong></p>
+<h3 id="idea-16">联合决定数据的位宽与存放位置</h3>
+<dl class="idea-steps"><div><dt>怎么做</dt><dd>按访问频率和量化敏感度分配位宽与位置：高频敏感数据以较高精度留在 GPU，低频不敏感数据低比特卸载。</dd></div><div><dt>先验证</dt><dd>在端侧部署等显存受限场景，比较显存节省、搬运时间和精度损失。</dd></div></dl>
+</section><h2 id="section-2" class="support-heading">补充图与数据</h2><details class="evidence"><summary>展开 FourTune 结果与稳定器消融图<span aria-hidden="true">＋</span></summary><div class="evidence-body"><p><strong>论文结果，非组内实测：</strong>相对 BF16 LoRA，显存占用约为 1/2.25，端到端加速约 2.27 倍；相对 QLoRA，显存增加约 15%，加速约 2.79 倍。无稳定器时梯度范数在后期快速增大，加入后相对平稳。</p><figure><a class="zoom" href="../assets/images/2026-10-15-image1.png"><img src="../assets/images/2026-10-15-image1.png" alt="图 1　稳定器对训练中梯度范数的影响。来源：胡揚嘉 汇报 PPT（FourTune 图 8）。" loading="lazy"></a><figcaption>图 1　稳定器对训练中梯度范数的影响。来源：胡揚嘉 汇报 PPT（FourTune 图 8）。</figcaption></figure><p class="evidence-note">汇报还以 QuaRot 的旋转、SVDQuant 的低秩分解和 Quartet 的反向量化路线作对照；QLoRA 主要节约权重存储，并不直接执行低比特计算。</p></div></details>
