@@ -2,7 +2,7 @@
 
 四期小组会的中文静态网站：完整正文、论文插图、章节目录、主题筛选和前后期导航。无需数据库、账号或前端依赖，禁用 JavaScript 仍可阅读正文与导航。
 
-- 预定 Sites 地址：https://system-group-notes.primleaf.chatgpt.site （实际部署状态以交付记录为准）
+- 网站地址：https://system-group-notes.primleaf.chatgpt.site
 - 公开仓库：https://github.com/haodongwang01/group_meeting
 - 内容日期：2026-10-15、2026-10-22、2026-11-04、2026-11-05
 
@@ -46,7 +46,7 @@ python scripts/check.py
 node --check dist/assets/site.js
 ```
 
-构建会更新全部页面、目录、前后期导航和站点地图。更改域名时设置环境变量 `SITE_URL` 后构建。归档期数显示应随新一期更新 `scripts/build.py` 中的数量（或改为自动计算）。
+构建会更新全部页面、目录、前后期导航、归档期数和站点地图。更改域名时设置环境变量 `SITE_URL` 后构建。新增研究主题时，同步更新首页筛选按钮；归档日期范围也应随记录更新。
 
 ## 发布
 
