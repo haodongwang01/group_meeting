@@ -9,7 +9,7 @@ REPO='https://github.com/haodongwang01/group_meeting'
 meetings=json.loads((ROOT/'content/meetings.json').read_text(encoding='utf-8'))
 def tags(m):return ''.join(f'<span class="tag">{escape(t)}</span>' for t in m['tags'])
 def shell(title,description,body,path='index.html'):
- prefix='../' if path.startswith('meetings/') else './'
+ prefix='/' if path=='404.html' else '../' if path.startswith('meetings/') else './'
  canonical=ORIGIN+'/'+path
  return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)} · 系统组研究札记</title><meta name="description" content="{escape(description,quote=True)}"><meta name="theme-color" content="#f8faf7"><meta property="og:title" content="{escape(title,quote=True)}"><meta property="og:description" content="{escape(description,quote=True)}"><meta property="og:type" content="{'article' if path.startswith('meetings/') else 'website'}"><meta property="og:url" content="{canonical}"><link rel="canonical" href="{canonical}"><link rel="icon" href="{prefix}assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="{prefix}assets/site.css"><script src="{prefix}assets/site.js" defer></script></head>
