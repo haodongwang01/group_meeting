@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>具身 RL 与沙盒：DSec、EBRL 及研究方向 · 系统组研究札记</title><meta name="description" content="理解有状态环境的生命周期与多粒度资源调度，寻找仿真、动作生成与训练之间的协作空间。"><meta name="theme-color" content="#f8faf7"><meta property="og:title" content="具身 RL 与沙盒：DSec、EBRL 及研究方向"><meta property="og:description" content="理解有状态环境的生命周期与多粒度资源调度，寻找仿真、动作生成与训练之间的协作空间。"><meta property="og:type" content="article"><meta property="og:url" content="https://system-group-notes.primleaf.chatgpt.site/meetings/2026-11-04.html"><link rel="canonical" href="https://system-group-notes.primleaf.chatgpt.site/meetings/2026-11-04.html"><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/site.css"><script src="../assets/site.js" defer></script></head>
+<body id="top"><a class="skip" href="#main">跳至主要内容</a><header class="site-header"><div class="header-inner"><a class="brand" href="../index.html" aria-label="系统组研究札记首页"><span class="brand-mark" aria-hidden="true">系</span><span>系统组 <span class="brand-divider">/</span> 研究札记<small>SYSTEMS RESEARCH NOTES</small></span></a><nav aria-label="主导航"><a href="../index.html#archive">会议归档</a><a href="../index.html#about">关于</a><a class="github" href="https://github.com/haodongwang01/group_meeting">GitHub <span aria-hidden="true">↗</span></a></nav></div></header>
+<main id="main" class="article-wrap wrap"><div class="breadcrumb"><a href="../index.html#archive">会议归档</a><span aria-hidden="true">/</span><span>札记 03</span></div><header class="article-header"><p class="eyebrow">MEETING NOTES / 03</p><div class="article-meta"><time datetime="2026-11-04">2026 年 11 月 04 日</time><span>论文研读 · 研究设想</span><span>约 5 分钟</span></div><h1>具身 RL 与沙盒：DSec、EBRL 及研究方向</h1><p class="article-deck">理解有状态环境的生命周期与多粒度资源调度，寻找仿真、动作生成与训练之间的协作空间。</p><div class="tags"><span class="tag">具身 RL</span><span class="tag">沙盒</span><span class="tag">资源调度</span></div></header><div class="article-layout"><aside class="toc"><details open><summary>本期目录 <span aria-hidden="true">⌄</span></summary><nav aria-label="本期章节"><ol><li class="toc-level-2"><a href="#dsec">DSec：让海量有状态沙盒低成本地持续存在</a></li><li class="toc-level-2"><a href="#ebrl">EBRL：让仿真、动作生成与训练持续重叠</a></li><li class="toc-level-2"><a href="#ideas">三个值得探索的切入点</a></li><li class="toc-level-3"><a href="#state">A　有状态仿真环境的弹性暂停与恢复</a></li><li class="toc-level-3"><a href="#gpu">B　感知 RT 渲染与数据搬运的异构 GPU 调度</a></li><li class="toc-level-3"><a href="#cache">C　可组合、可复用的仿真场景缓存</a></li><li class="toc-level-2"><a href="#references">论文来源</a></li></ol></nav></details><a class="back-top" href="#top">↑ 返回顶部</a></aside><article class="prose"><p class="reading-note">DSec 与 EBRL 的观察和结果按所提供论文版本记录；A、B、C 三个方向均为研究设想。</p><h2 id="dsec">DSec：让海量有状态沙盒低成本地持续存在</h2>
+<p class="key">把环境构建、资源占用与执行状态分开管理：环境可复用，资源按需用，Rollout 状态不依赖 GPU 训练作业的生命周期。</p>
+<figure><a class="zoom" href="../assets/images/dsec_cpu_memory_fig3.png"><img src="../assets/images/dsec_cpu_memory_fig3.png" alt="DSec 图 3：沙盒 CPU 间歇活跃，而内存仍持续驻留" loading="lazy"></a><figcaption>DSec 原图 3（第 10 页）：CPU 间歇忙，内存持续驻留。</figcaption></figure>
+<p><strong>核心观察：</strong>沙盒常在等待模型生成下一步操作，但文件、进程与内存状态不能随之丢弃。</p>
+<p><strong>资源错配：</strong>约 90% 的沙盒，平均 CPU 用量不超过申请量的 5%；低 CPU 活跃度并不等于低状态保持成本。<a href="#references">[1]</a></p>
+<p><strong>环境拆开复用：</strong>Base、Workspace 与 Toolkit 独立版本化，运行时组合；更新一个工具层，不必重建所有任务镜像。<a href="#references">[1]</a></p>
+<figure><a class="zoom" href="../assets/images/dsec_layers_fig4.png"><img src="../assets/images/dsec_layers_fig4.png" alt="DSec 图 4：Base、Workspace 和 Toolkit 独立分层、按需组合" loading="lazy"></a><figcaption>DSec 原图 4（第 11 页）：从整体镜像重建，变成独立层更新与组合。</figcaption></figure>
+<p><strong>资源按需占用：</strong>镜像数据从 3FS 按访问需要加载；配合内存共享、回收与 CPU 服务质量控制，提高沙盒部署密度。<a href="#references">[1]</a></p>
+<p><strong>状态独立保留：</strong>将 Agent Loop 的执行与管理移到可抢占 GPU 池之外。旧方案中沙盒虽仍存在，Agent Loop 却会丢失；新方案由 Worker 与 Agent Sandbox 共同保留 Rollout 状态，训练作业恢复后重新连接。<a href="#references">[1]</a></p>
+<p class="key">研究启发：计算资源的生命周期，不必等于有状态环境的生命周期。</p>
+<h2 id="ebrl">EBRL：让仿真、动作生成与训练持续重叠</h2>
+<p class="key">只让 Rollout 与 Training 异步还不够：还要消除环境之间不必要的同步，并把资源分配细化到 CPU 核与 GPU 逻辑算力配额。</p>
+<p><strong>核心问题：</strong>整卡独占与批量同步让快环境等慢环境、推理等仿真；各阶段需求还会随训练进展改变，固定分配容易失衡。<a href="#references">[2]</a></p>
+<figure><a class="zoom" href="../assets/images/ebrl_pipeline_fig9.png"><img src="../assets/images/ebrl_pipeline_fig9.png" alt="EBRL 图 9：Rollout 和训练跨迭代重叠，仿真和动作生成跨环境组重叠" loading="lazy"></a><figcaption>EBRL 原图 9（第 6 页）：跨迭代、跨环境组的重叠。</figcaption></figure>
+<p><strong>跨迭代：</strong>采集新轨迹的同时，使用先前轨迹更新模型。</p>
+<p><strong>跨环境组：</strong>一组执行已有动作，另一组生成下一段动作，让仿真与动作生成重叠。<a href="#references">[2]</a></p>
+<figure><a class="zoom" href="../assets/images/ebrl_step_fig10.png"><img src="../assets/images/ebrl_step_fig10.png" alt="EBRL 图 10：Action Chunk 内各环境独立推进，等待新动作时释放 CPU 核" loading="lazy"></a><figcaption>EBRL 原图 10（第 6 页）：消除 Action Chunk 内的逐步屏障。</figcaption></figure>
+<p><strong>跨仿真步：</strong>各环境已拿到一段动作，可在段内独立推进，不必每步等待其他环境。</p>
+<p><strong>释放即调度：</strong>等待新动作的环境释放 CPU 核，交给其他就绪环境；优先调度预计较慢的步骤。<a href="#references">[2]</a></p>
+<p><strong>资源随瓶颈调整：</strong>基于离线 Profile 与运行时吞吐反馈，选择 CPU 核数、GPU 逻辑 SM 配额和 Batch Size，平衡仿真、生成、训练的处理能力。默认通过 MPS 支持共享执行。<a href="#references">[2]</a></p>
+<p><strong>依赖仍需保留：</strong>环境只能在已有动作范围内提前推进；下一段动作仍依赖新观测与模型生成。异步不是跳过因果关系。<a href="#references">[2]</a></p>
+<p class="note"><strong>论文结果：</strong>所测配置的端到端轨迹吞吐达到基线的 1.30–3.47 倍；收益依赖具体模型、仿真器与硬件。<a href="#references">[2]</a></p>
+<p class="key">研究启发：不仅要让更多任务并行，还要让可执行工作与合适的资源及时匹配。</p>
+<h2 id="ideas">三个值得探索的切入点</h2>
+<p class="note">以下均为研究设想；图中布局与收益方向是概念示意，不代表已实现或实测结果。示意图依据会议 TeX 原图改为网页排版。</p>
+<h3 id="state">A　有状态仿真环境的弹性暂停与恢复</h3>
+<p><strong>核心思想：</strong>将仿真状态与计算资源解耦：在一致性边界保存动态物理状态、随机状态和 Rollout 进度，资源恢复后从断点继续，而不是重新初始化并重跑轨迹。</p>
+<figure class="diagram"><div class="flow"><b>重启方式</b><span>已执行的仿真步骤</span><i>→</i><span class="warm">中断</span><i>→</i><span>重新初始化并重跑</span></div><div class="flow"><b>研究目标</b><span>已执行的仿真步骤</span><i>→</i><span class="warm">状态快照</span><i>→</i><span>恢复状态，继续后续步骤</span></div><figcaption>概念示意 A：保存状态与断点恢复。</figcaption></figure>
+<p><strong>新问题与难点：</strong>从 DSec 的 Agent 状态扩展到物理仿真状态；关键是哪些内部状态可恢复、恢复后是否足够一致，以及保存成本是否低于重跑成本。</p>
+<h3 id="gpu">B　感知 RT 渲染与数据搬运的异构 GPU 调度</h3>
+<p><strong>核心思想：</strong>不只按 SM 配额分配资源，而是联合考虑 RT 渲染需求、SM、显存与跨设备传输，动态选择仿真、推理、训练的同卡共享或跨卡拆分。</p>
+<figure class="diagram"><div class="flow"><b>渲染较重</b><span>RTX：渲染</span><i>↔</i><span>计算型 GPU：推理 + 训练</span></div><div class="flow"><b>渲染较轻</b><span>RTX：渲染 + 部分推理</span><i>↔</i><span>计算型 GPU：训练</span></div><figcaption>概念示意 B：依据渲染与通信开销选择计算布局。</figcaption></figure>
+<p><strong>新问题与难点：</strong>EBRL 已测试 RTX + A100 混合配置；新意不在“使用异构 GPU”，而在渲染干扰与通信成本驱动的动态布局。RT 需求感知也不等于已能直接切分 RT Core。<a href="#references">[2]</a></p>
+<h3 id="cache">C　可组合、可复用的仿真场景缓存</h3>
+<p><strong>核心思想：</strong>共享静态场景资产与可复用的初始化产物，为每个环境保留独立动态状态；按任务切换模式缓存或预加载，减少场景加载和重复初始化。</p>
+<figure class="diagram"><div class="flow"><span>共享层<br>场景资产 / 可复用初始化产物</span><i>→</i><span>任务 1：独立动态状态<br>任务 2：独立动态状态</span></div><figcaption>概念示意 C：共享静态资产，隔离动态状态。</figcaption></figure>
+<p><strong>新问题与难点：</strong>从 DSec 的软件镜像层扩展到仿真场景生命周期；核心是跨任务能共享什么、版本变化如何失效，以及收益能否超越普通镜像缓存与单次进程内复用。</p>
+<p class="key">三个方向的分工：A 管“状态如何留下”，B 管“计算放到哪里”，C 管“环境如何复用”。</p>
+<h2 id="references">论文来源</h2>
+<ol><li>Jialiang Huang et al. <cite>DeepSeek Elastic Compute (DSec): A Sandbox Infrastructure for Effective Agentic Training at Scale</cite>。所提供论文，重点见第 4–6 节。</li><li>Liang Mi et al. <cite>EBRL: Asynchronous Embodied RL by Multi-Grained Resource Management</cite>。所提供论文，重点见第 3–6 节。</li></ol>
+<div class="source-note"><strong>本期整理依据</strong><p>《具身 RL 与沙盒技术：两篇论文的核心思想与三个研究方向》（2026-11-04，TeX、PDF 与配套插图）。正文保留原记录论点与数字，引用图版权归原作者；概念示意均为待验证研究方向。</p><a href="../credits.html">查看来源与使用说明 →</a></div><nav class="issue-nav" aria-label="前后期导航"><a href="2026-10-22.html"><small>上一期 · 更早 / 2026-10-22</small><strong>MoE 专家内神经元聚类与动态权重加载</strong><span aria-hidden="true">↗</span></a><a href="2026-11-05.html"><small>下一期 · 更新 / 2026-11-05</small><strong>原生稀疏注意力的 SSD 卸载探索</strong><span aria-hidden="true">↗</span></a></nav></article></div></main><footer class="site-footer"><div><a class="footer-brand" href="../index.html">系统组 · 研究札记</a><p>记录问题，连接思路，让讨论继续。</p></div><div><a href="https://github.com/haodongwang01/group_meeting">GitHub 源码 ↗</a><p>原创代码 MIT · <a href="../credits.html">内容与图片来源</a></p></div></footer>
+<dialog id="lightbox" aria-label="图片放大查看"><button class="close-dialog" type="button" autofocus aria-label="关闭放大图片">关闭 ×</button><img alt=""><p></p></dialog></body></html>
