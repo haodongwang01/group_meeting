@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-11-18",
+    "issue": "05",
+    "title": "KVDrive PQE 汇报：分层 KV 管理与研究计划",
+    "summary": "围绕 KV 复用、微批流水线与跨层放置总结 KVDrive，并记录研究计划、老师意见和改进安排。",
+    "tags": [
+      "KV Cache",
+      "SSD 卸载",
+      "PQE 汇报"
+    ],
+    "type": "PQE 汇报 · 反馈与改进",
+    "source": "《KVDrive PQE Presentation — English.pptx》（26 页及演讲备注）；老师意见与回复依据用户补充，归档日期按本次整理日期 2026-11-18 记录",
+    "cover": "2026-11-18-cache-allocation.png",
+    "notice": "已有机制与后续研究计划分开呈现；老师意见和回复依据用户补充整理。",
+    "speaker": "林健",
+    "contribution_label": "后续内容讨论",
+    "contributors": "计划与张婕师姐讨论修改"
+  },
+  {
     "date": "2026-11-05",
     "issue": "04",
     "title": "原生稀疏注意力的 SSD 卸载探索",
