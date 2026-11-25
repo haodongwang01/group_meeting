@@ -3,6 +3,7 @@ from pathlib import Path
 from html.parser import HTMLParser
 from urllib.parse import urlsplit,unquote
 import json,sys
+from site_config import SITE_PATH
 root=Path(__file__).resolve().parent.parent; dist=root/'dist'; errors=[]
 class Page(HTMLParser):
  def __init__(self,text):
@@ -27,7 +28,14 @@ for p,doc in pages.items():
  for href in doc.links:
   u=urlsplit(href)
   if u.scheme or u.netloc:continue
-  target=(dist/unquote(u.path).lstrip('/') if u.path.startswith('/') else p.parent/unquote(u.path)).resolve() if u.path else p.resolve()
+  link_path=unquote(u.path)
+  if link_path.startswith('/'):
+   if not link_path.startswith(SITE_PATH):
+    errors.append(f'{p.name}: link outside project path: {href}')
+    continue
+   target=(dist/link_path[len(SITE_PATH):]).resolve()
+  else:
+   target=(p.parent/link_path).resolve() if link_path else p
   if target.is_dir():target=target/'index.html'
   if not target.exists():errors.append(f'{p.name}: missing {href}')
   elif u.fragment and target.suffix=='.html':

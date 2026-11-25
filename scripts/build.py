@@ -1,18 +1,18 @@
 """Build complete static pages using Python 3's standard library."""
 from pathlib import Path
 from html import escape
-import json,re,os
+import json,re
+from site_config import SITE_PATH, SITE_URL
 ROOT=Path(__file__).resolve().parent.parent
 DIST=ROOT/'dist'; (DIST/'meetings').mkdir(parents=True,exist_ok=True)
-ORIGIN=os.environ.get('SITE_URL','https://system-group-notes.primleaf.chatgpt.site').rstrip('/')
 REPO='https://github.com/haodongwang01/group_meeting'
 meetings=json.loads((ROOT/'content/meetings.json').read_text(encoding='utf-8'))
 def tags(m):return ''.join(f'<span class="tag">{escape(t)}</span>' for t in m['tags'])
 def people(m):
  return f'<dl class="contributors"><div><dt>主讲人</dt><dd>{escape(m["speaker"])}</dd></div><div><dt>{escape(m["contribution_label"])}</dt><dd>{escape(m["contributors"])}</dd></div></dl>'
 def shell(title,description,body,path='index.html'):
- prefix='/' if path=='404.html' else '../' if path.startswith('meetings/') else './'
- canonical=ORIGIN+'/'+path
+ prefix=SITE_PATH if path=='404.html' else '../' if path.startswith('meetings/') else './'
+ canonical=SITE_URL+'/'+path
  return f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)} · 系统组研究札记</title><meta name="description" content="{escape(description,quote=True)}"><meta name="theme-color" content="#f8faf7"><meta property="og:title" content="{escape(title,quote=True)}"><meta property="og:description" content="{escape(description,quote=True)}"><meta property="og:type" content="{'article' if path.startswith('meetings/') else 'website'}"><meta property="og:url" content="{canonical}"><link rel="canonical" href="{canonical}"><link rel="icon" href="{prefix}assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="{prefix}assets/site.css"><script src="{prefix}assets/site.js" defer></script></head>
 <body id="top"><a class="skip" href="#main">跳至主要内容</a><header class="site-header"><div class="header-inner"><a class="brand" href="{prefix}index.html" aria-label="系统组研究札记首页"><span class="brand-mark" aria-hidden="true">系</span><span>系统组 <span class="brand-divider">/</span> 研究札记<small>SYSTEMS RESEARCH NOTES</small></span></a><nav aria-label="主导航"><a href="{prefix}index.html#archive">会议归档</a><a href="{prefix}index.html#about">关于</a><a class="github" href="{REPO}">GitHub <span aria-hidden="true">↗</span></a></nav></div></header>
@@ -39,8 +39,8 @@ for i,m in enumerate(meetings):
  write(f"meetings/{m['date']}.html",shell(m['title'],m['summary'],article,f"meetings/{m['date']}.html"))
 credits='''<main id="main" class="wrap simple-page"><p class="eyebrow">SOURCES & CREDITS</p><h1>内容与图片来源</h1><p>网站整理用户提供的系统组会议与 PQE 汇报材料。会议原 DOCX、PDF、TeX 和演示文稿不作为下载文件发布。</p><h2>会议内容</h2><ul>'''+''.join(f'<li><a href="meetings/{m["date"]}.html">{m["date"]} · {m["title"]}</a><p>{m["source"]}</p></li>' for m in meetings)+'''</ul><h2>引用图片</h2><p>10 月 15 日：FourTune 图 8，来自胡揚嘉汇报材料。10 月 22 日：Expert 内神经元聚类示意，来自游嘉玮汇报的会议总结。11 月 4 日：DSec 图 3、4，EBRL 图 9、10，来自所提供论文及配套图。11 月 5 日：HiSparse 图 6、2，FlatCake 图 5、4，来自会议 DOCX。11 月 18 日：缓存窗口代价图、注意力热图与吞吐结果图，来自 KVDrive 英文 PQE PPT 第 10、17、18 页。所有图片均在正文相邻位置标注出处。</p><h2>使用范围</h2><p>原创网站代码采用 MIT 许可。MIT 不覆盖会议正文、第三方论文图片及其他引用材料；这些内容的权利归各自权利人所有，未另行授予开放再利用许可。需要转载、修改或用于其他用途时，应另行核对并取得相应许可。</p><p>研究设想示意依据原会议材料重排；不应解读为已实现的系统或已验证的实验结果。</p><p><a href="index.html">← 返回首页</a></p></main>'''
 write('credits.html',shell('内容与图片来源','会议材料、论文插图和原创代码的来源与使用说明。',credits,'credits.html'))
-write('404.html',shell('未找到页面','该页面不存在，请返回会议归档。','<main id="main" class="wrap simple-page"><p class="eyebrow">404 / PAGE NOT FOUND</p><h1>这一页，还没有记录。</h1><p>链接可能已变化，回到归档继续阅读。</p><a class="primary-link" href="/index.html#archive">返回会议归档 →</a></main>','404.html'))
+write('404.html',shell('未找到页面','该页面不存在，请返回会议归档。',f'<main id="main" class="wrap simple-page"><p class="eyebrow">404 / PAGE NOT FOUND</p><h1>这一页，还没有记录。</h1><p>链接可能已变化，回到归档继续阅读。</p><a class="primary-link" href="{SITE_PATH}index.html#archive">返回会议归档 →</a></main>','404.html'))
 urls=['index.html','credits.html']+[f'meetings/{m["date"]}.html' for m in meetings]
-write('sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+''.join(f'<url><loc>{ORIGIN}/{p}</loc></url>' for p in urls)+'</urlset>\n')
-write('robots.txt',f'User-agent: *\nAllow: /\nSitemap: {ORIGIN}/sitemap.xml\n')
+write('sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+''.join(f'<url><loc>{SITE_URL}/{p}</loc></url>' for p in urls)+'</urlset>\n')
+write('robots.txt',f'User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml\n')
 print(f'Built {len(meetings)} meeting pages, home, credits, 404 and sitemap.')

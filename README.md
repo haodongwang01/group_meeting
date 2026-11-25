@@ -1,8 +1,8 @@
 # 系统组 · 研究札记
 
-四期小组会的中文静态网站：核心思想、主讲人与成员 idea、可展开的论文图与数据，以及章节目录和前后期导航。无需数据库、账号或前端依赖，禁用 JavaScript 仍可阅读和展开补充资料。
+系统组会议与汇报的中文静态网站，收录核心思想、主讲人与成员 idea、可展开的论文图与数据，以及章节目录和前后期导航。禁用 JavaScript 仍可阅读和展开补充资料。
 
-- 网站地址：https://system-group-notes.primleaf.chatgpt.site
+- 网站地址：https://haodongwang01.github.io/group_meeting/
 - 公开仓库：https://github.com/haodongwang01/group_meeting
 - 内容日期：2026-10-15、2026-10-22、2026-11-04、2026-11-05、2026-11-18
 
@@ -29,7 +29,7 @@ dist/assets/               共用 CSS、JS、图标与引用插图
 dist/credits.html          来源及许可范围
 dist/404.html              未找到页面
 dist/sitemap.xml           站点地图
-.openai/hosting.json       Sites 身份与静态部署目录
+.github/workflows/pages.yml GitHub Pages 自动构建与发布
 ```
 
 ## 新增一期
@@ -50,11 +50,9 @@ node --check dist/assets/site.js
 
 ## 发布
 
-将 `dist/` 作为站点根目录。Sites 使用 `.openai/hosting.json` 指定的项目和静态目录；更新已有站点时保留 `project_id`，不要重复创建。使用 Sites 技能的 source helper 同步对应的源码仓库、检查并打包，随后保存版本并部署。站点访问权限应为 `public`。凭证仅通过 helper 的隐藏标准输入传入，不写入代码、日志、Git remote 或仓库。
+在仓库的 **Settings → Pages → Build and deployment → Source** 中选择 **GitHub Actions**。每次推送到 `main`，工作流 **Publish meeting notes** 都会重新构建、校验并发布 `dist/`。需要重新发布时，可以在 Actions 页面手动运行这个工作流。
 
-Sites 源码仓库与本公开 GitHub 仓库是两个远端；发布时同步同一份文件树，并核对公开仓库的文件摘要。Sites archive 放在项目目录之外。公开仓库只包含网页、网页正文和引用插图，不包含原始 DOCX/PDF/TeX/演示文稿。
-
-若使用其他静态平台，直接发布 `dist/`，配置真正的 404 页面，确保 `/meetings/YYYY-MM-DD.html` 可以独立访问；无需 SPA 重写。GitHub 公开仓库本身不自动启用 GitHub Pages。
+GitHub Pages 将网站挂载到 `/group_meeting/`。独立文章的公开路径为 `/group_meeting/meetings/YYYY-MM-DD.html`。发布目录只包含网页和引用插图。
 
 ## 验证与许可
 
