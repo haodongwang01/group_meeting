@@ -28,6 +28,8 @@ jobs:
 
   deploy:
     needs: build
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -40,3 +42,15 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  verify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify the public site and its custom 404 page
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          python3 scripts/build.py
+          python3 scripts/check_live.py "$PAGE_URL"
