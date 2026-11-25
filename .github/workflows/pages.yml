@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '7 16 * * 0'  # Monday 00:07 in Beijing
 
 permissions:
   contents: read
@@ -15,12 +17,20 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      report_date: ${{ steps.week.outputs.report_date }}
     steps:
       - uses: actions/checkout@v6
+      - name: Set the Beijing date for this release
+        id: week
+        run: echo "report_date=$(TZ=Asia/Shanghai date +%F)" >> "$GITHUB_OUTPUT"
       - name: Build and check the static site
+        env:
+          WEEKLY_AS_OF: ${{ steps.week.outputs.report_date }}
         run: |
           python3 scripts/build.py
           python3 scripts/check.py
+          python3 scripts/check_weekly_mobile.py
           node --check dist/assets/site.js
       - uses: actions/upload-pages-artifact@v4
         with:
@@ -44,13 +54,14 @@ jobs:
         uses: actions/deploy-pages@v4
 
   verify:
-    needs: deploy
+    needs: [build, deploy]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - name: Verify the public site and its custom 404 page
         env:
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          WEEKLY_AS_OF: ${{ needs.build.outputs.report_date }}
         run: |
           python3 scripts/build.py
           python3 scripts/check_live.py "$PAGE_URL"

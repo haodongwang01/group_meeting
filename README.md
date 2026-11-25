@@ -6,6 +6,12 @@
 - 公开仓库：https://github.com/haodongwang01/group_meeting
 - 内容日期：2026-10-15、2026-10-22、2026-11-04、2026-11-05、2026-11-18
 
+## 组员周报
+
+[查看本周周报](https://haodongwang01.github.io/group_meeting/weekly/) · [填写说明](content/weekly/README.md) · [Markdown 模板](content/weekly/TEMPLATE.md)
+
+每人每周一份 Markdown，提交至 `content/weekly/周一日期/姓名.md`。归档自 2026 年 11 月 23 日开始，按北京时间划周。每次推送和每周一 00:07 的定时工作流都会构建当周页面。复核历史构建时可用环境变量 `WEEKLY_AS_OF` 指定该次发布的北京日期。周报中的材料链接请使用完整的 HTTP 或 HTTPS 地址。
+
 ## 本地预览
 
 需要 Python 3；预生成的 `dist/` 可以直接托管，无需构建。
