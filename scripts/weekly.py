@@ -11,7 +11,7 @@ WEEK = timedelta(days=7)
 MEMBERS = {
     "王浩东": "wang-haodong", "林健": "lin-jian", "游嘉玮": "you-jiawei",
     "刘千里": "liu-qianli", "米家志": "mi-jiazhi", "胡揚嘉": "hu-yangjia",
-    "陈钦德": "chen-qinde",
+    "陈钦德": "chen-qinde", "谢欣凌": "xie-xinling",
 }
 HEADINGS = ("本周进展", "问题或求助", "下周计划")
 
