@@ -14,6 +14,10 @@ MEMBERS = {
     "陈钦德": "chen-qinde", "谢欣凌": "xie-xinling",
 }
 HEADINGS = ("本周进展", "问题或求助", "下周计划")
+INLINE_MARKUP = re.compile(
+    r"!\[([^\]\n]+)\]\(\.\./\.\./\.\./dist/(assets/images/[\w.-]+\.[\w-]+)\)"
+    r"|\[([^\]\n]+)\]\((https?://[^\s()<>\"']+)\)"
+)
 
 
 def current_monday():
@@ -28,28 +32,34 @@ def week_label(monday):
     return f"{monday.year} 年 {monday.month} 月 {monday.day} 日 – {last}"
 
 
-def inline(text):
-    """Only explicit HTTP(S) material links produce markup."""
+def inline(text, asset_prefix):
+    """Render HTTP(S) links and images stored in the repository."""
     parts = []
     start = 0
-    for match in re.finditer(r"\[([^\]\n]+)\]\((https?://[^\s()<>\"']+)\)", text):
-        parts.extend((escape(text[start:match.start()]),
-                      f'<a href="{escape(match[2], quote=True)}">{escape(match[1])}</a>'))
+    for match in INLINE_MARKUP.finditer(text):
+        parts.append(escape(text[start:match.start()]))
+        alt, image, label, url = match.groups()
+        if image:
+            src = escape(asset_prefix + image, quote=True)
+            parts.append(f'<a class="zoom" href="{src}">'
+                         f'<img src="{src}" alt="{escape(alt, quote=True)}" loading="lazy"></a>')
+        else:
+            parts.append(f'<a href="{escape(url, quote=True)}">{escape(label)}</a>')
         start = match.end()
     return "".join(parts) + escape(text[start:])
 
 
-def blocks(lines):
+def blocks(lines, asset_prefix):
     result = []
     paragraph = []
     items = []
 
     def flush():
         if paragraph:
-            result.append("<p>" + inline(" ".join(paragraph)) + "</p>")
+            result.append("<p>" + inline(" ".join(paragraph), asset_prefix) + "</p>")
             paragraph.clear()
         if items:
-            result.append("<ul>" + "".join(f"<li>{inline(item)}</li>" for item in items) + "</ul>")
+            result.append("<ul>" + "".join(f"<li>{inline(item, asset_prefix)}</li>" for item in items) + "</ul>")
             items.clear()
 
     for line in lines:
@@ -92,7 +102,7 @@ def read_report(path, placeholder):
         return None
     if not title or first == placeholder or set(sections) != set(HEADINGS) or not any(sections["本周进展"]):
         raise ValueError(f"{path}: 请填写一句话结论、本周进展，并保留模板的三个小标题")
-    return title, {name: blocks(sections[name]) for name in HEADINGS}
+    return title, sections
 
 
 def build_weekly(source, repo, shell, write):
@@ -121,7 +131,7 @@ def build_weekly(source, repo, shell, write):
     def count(week):
         return f"{sum((week, name) in reports for name in MEMBERS)}/{len(MEMBERS)} 人已更新"
 
-    def entry(week, name):
+    def entry(week, name, asset_prefix):
         key = (week, name)
         filename = f"{week}/{name}.md"
         if key in existing:
@@ -134,7 +144,7 @@ def build_weekly(source, repo, shell, write):
             return f'<div class="w-empty"><span>待更新</span><a href="{link}" aria-label="填写{name}的周报">填写</a></div>'
         title, sections = reports[key]
         details = "".join(
-            f'<div><dt>{h}</dt><dd>{sections[h] or "—"}</dd></div>' for h in HEADINGS
+            f'<div><dt>{h}</dt><dd>{blocks(sections[h], asset_prefix) or "—"}</dd></div>' for h in HEADINGS
         )
         return (f'<details class="w-report"><summary>{escape(title)}</summary><dl>{details}</dl>'
                 f'<a href="{link}">编辑周报</a></details>')
@@ -147,7 +157,7 @@ def build_weekly(source, repo, shell, write):
 
     for week in weeks:
         rows = "".join(
-            f'<li><a class="w-name" href="members/{slug}.html">{name}</a>{entry(week, name)}</li>'
+            f'<li><a class="w-name" href="members/{slug}.html">{name}</a>{entry(week, name, "../")}</li>'
             for name, slug in MEMBERS.items()
         )
         body = (f'<header class="w-heading"><h1>组员周报</h1><a class="primary-link" href="{guide}">提交本周周报</a></header>'
@@ -159,7 +169,7 @@ def build_weekly(source, repo, shell, write):
 
     for name, slug in MEMBERS.items():
         rows = "".join(
-            f'<li><a class="w-date" href="../{week}.html">{week_label(week)}</a>{entry(week, name)}</li>'
+            f'<li><a class="w-date" href="../{week}.html">{week_label(week)}</a>{entry(week, name, "../../")}</li>'
             for week in weeks
         )
         body = (f'<a class="w-back" href="../index.html">← 全组周报</a><header class="w-heading"><h1>{name}的周报</h1></header>'
