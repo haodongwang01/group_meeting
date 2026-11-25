@@ -30,7 +30,7 @@ jobs:
         run: |
           python3 scripts/build.py
           python3 scripts/check.py
-          python3 scripts/check_weekly_mobile.py
+          python3 scripts/check_layout.py
           node --check dist/assets/site.js
       - uses: actions/upload-pages-artifact@v4
         with:

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RLinf：强化学习训练中的 GPU 复用与流水调度 · 系统组研究札记</title><meta name="description" content="胡揚嘉分享 RLinf 如何安排生成、推理、训练和仿真，并讨论如何用少量 GPU 验证 rollout 的等待与同步开销。"><meta name="theme-color" content="#f8faf7"><meta property="og:title" content="RLinf：强化学习训练中的 GPU 复用与流水调度"><meta property="og:description" content="胡揚嘉分享 RLinf 如何安排生成、推理、训练和仿真，并讨论如何用少量 GPU 验证 rollout 的等待与同步开销。"><meta property="og:type" content="article"><meta property="og:url" content="https://haodongwang01.github.io/group_meeting/meetings/2026-11-19.html"><link rel="canonical" href="https://haodongwang01.github.io/group_meeting/meetings/2026-11-19.html"><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/site.css"><script src="../assets/site.js" defer></script></head>
+<body id="top"><a class="skip" href="#main">跳至主要内容</a><header class="site-header"><div class="header-inner"><a class="brand" href="../index.html" aria-label="系统组研究札记首页"><span class="brand-mark" aria-hidden="true">系</span><span>系统组 <span class="brand-divider">/</span> 研究札记<small>SYSTEMS RESEARCH NOTES</small></span></a><nav aria-label="主导航"><a href="../index.html#archive">会议归档</a><a href="../weekly/index.html">组员周报</a><a class="about-link" href="../index.html#about">关于</a><a class="github" href="https://github.com/haodongwang01/group_meeting">GitHub <span aria-hidden="true">↗</span></a></nav></div></header>
+<main id="main" class="article-wrap wrap"><div class="breadcrumb"><a href="../index.html#archive">会议归档</a><span aria-hidden="true">/</span><span>札记 06</span></div><header class="article-header"><p class="eyebrow">MEETING NOTES / 06</p><div class="article-meta"><time datetime="2026-11-19">2026 年 11 月 19 日</time><span>论文分享 · 系统优化讨论</span><span>约 3 分钟</span></div><h1>RLinf：强化学习训练中的 GPU 复用与流水调度</h1><p class="article-deck">胡揚嘉分享 RLinf 如何安排生成、推理、训练和仿真，并讨论如何用少量 GPU 验证 rollout 的等待与同步开销。</p><div class="tags"><span class="tag">具身 RL</span><span class="tag">资源调度</span><span class="tag">RLinf</span></div><dl class="contributors"><div><dt>主讲人</dt><dd>胡揚嘉</dd></div><div><dt>后续验证方向</dt><dd>少量 GPU 上的 rollout、设备等待与同步开销</dd></div></dl></header><div class="article-layout"><aside class="toc"><details open><summary>本期目录 <span aria-hidden="true">⌄</span></summary><nav aria-label="本期章节"><ol><li class="toc-level-2"><a href="#core">核心思想</a></li><li class="toc-level-3"><a href="#placement">同一组 GPU 轮换，还是分组流水？</a></li><li class="toc-level-3"><a href="#m2flow">M2Flow 如何决定何时、在哪些卡上运行？</a></li><li class="toc-level-2"><a href="#results">论文结果与分析</a></li><li class="toc-level-2"><a href="#discussion">会议建议与后续验证</a></li><li class="toc-level-2"><a href="#evidence">调度图与来源</a></li></ol></nav></details><a class="back-top" href="#top">↑ 返回顶部</a></aside><article class="prose"><h2 id="core">核心思想</h2>
+<p class="core-statement">同一批请求里，长回答会拖长采样阶段。即使部分 GPU 已完成生成，推理和训练仍可能要等整批结束。胡揚嘉以 RLinf 为例，讨论了把这段等待用起来的两种办法。</p>
+<div class="core-grid">
+  <section><h3 id="placement">同一组 GPU 轮换，还是分组流水？</h3><p>时间复用让多个阶段轮流使用同一组 GPU，各阶段可以用足设备，但交接时要切换状态。空间流水把不同阶段放到不同 GPU 组，前一阶段产出一块数据，后一阶段即可在依赖满足时接手。代价是每个阶段可用的卡变少。混合模式允许不同子流程采用不同安排。</p></section>
+  <section><h3 id="m2flow">M2Flow 如何决定何时、在哪些卡上运行？</h3><p>Runner 描述调用、依赖和同步点，Worker 执行计算，Channel 分块传递中间数据。共享 GPU 时，设备锁配合加载与卸载完成交接。调度器依据实测耗时和 GPU 预算，递归比较设备分配、批次粒度与流水方式。</p></section>
+</div>
+<h2 id="results">论文结果与分析</h2>
+<p>在 Qwen2.5-7B、32 张 GPU 的 PPO 实验中，空间流水让 <strong>rollout 耗时增加了 39.3%</strong>。推理和训练却能与采样重叠，完整迭代反而更早结束。这也是会上建议同时记录阶段耗时和端到端吞吐的原因。</p>
+<ul class="core-points">
+  <li><strong>ManiSkill：</strong>在 8、16、32 张 GPU 的测试中，RLinf 混合模式的端到端吞吐（环境步/秒）比时间复用高 52.2%–69.1%，比空间流水高 60.7%–87.2%。两组百分比分别对应 RLinf 的两种内部基线。</li>
+  <li><strong>LIBERO：</strong>该环境更依赖 CPU。在论文所测配置中，时间复用优于混合模式。把环境限制在部分设备对应的资源上，会让可用 CPU 核得不到充分利用。</li>
+</ul>
+<h2 id="discussion">会议建议与后续验证</h2>
+<p class="section-intro">组内讨论把下一步收敛到少量 GPU 上能完成的 rollout 实验。以下是验证计划，原稿未逐条署名。</p>
+<ol class="core-points">
+  <li><strong>先确定优化目标。</strong>对同一负载记录一次完整训练迭代的耗时和吞吐，再拆分生成、推理、训练、通信和状态切换。用端到端结果判断消除的等待是否抵得过额外开销。</li>
+  <li><strong>标出流水的同步边界。</strong>分别记录数据进入 Channel、共享 GPU 释放和计算实际启动的时刻。用这三个时刻定位等待，并检查整批数据齐备、权重同步等算法约束。</li>
+  <li><strong>选一个具身环境做少卡验证。</strong>把模型计算、物理仿真和渲染分开计时，观察 CPU、GPU、显存与传输的占用，再决定优先调整环境并发、模型批量还是阶段重叠。</li>
+  <li><strong>给每个结果注明基线和规模。</strong>内部模式之间的差异与跨框架的整体收益应分别报告。会上提到的 1024 张 GPU 是调度搜索的输入规模；早期论文列出的 256 张 H100 是集群总容量（32 个节点，每节点 8 张）。论文图 14 给出了从 8 张 GPU 起的具身实验。少卡实验也应写明实际用卡数和可支持的结论。</li>
+</ol>
+<h2 id="evidence" class="support-heading">调度图与来源</h2>
+<details class="evidence"><summary>展开 RLinf 图 7 与实验出处<span aria-hidden="true">＋</span></summary>
+  <div class="evidence-body">
+    <figure><a class="zoom" href="../assets/images/2026-11-19-rlinf-scheduling.png"><img src="../assets/images/2026-11-19-rlinf-scheduling.png" alt="四条 GPU 时间线从左至右展示阶段轮换、分组流水和混合调度，箭头标出数据与设备状态的交接" loading="lazy"></a><figcaption>RLinf 图 7，取自 11 月 19 日会议原稿。左图在相同设备上轮换阶段，中图分组传递数据块，右图组合两种安排并加入具身仿真。</figcaption></figure>
+    <p class="evidence-note">调度示意及集群配置见<a href="https://arxiv.org/html/2509.15965v1">论文早期版本，图 7 与 §5.1</a>。PPO 阶段耗时、具身吞吐和搜索规模分别见<a href="https://arxiv.org/pdf/2509.15965">论文图 11、14、16</a>。</p>
+  </div>
+</details>
+<details class="source-note"><summary>来源与说明</summary><p>《系统组小组会会议总结_20261119.docx》正文及内嵌 RLinf 图 7；实验配置与比较基线参见正文所引论文。网页按所列材料与用户补充整理，研究设想和验证安排不表示已完成实验；引用图版权归原作者。</p><a href="../credits.html">查看来源与使用说明 →</a></details><nav class="issue-nav" aria-label="前后期导航"><a href="2026-11-18.html"><small>上一期 · 更早 / 2026-11-18</small><strong>KVDrive PQE 汇报：分层 KV 管理与研究计划</strong><span aria-hidden="true">↗</span></a></nav></article></div></main><footer class="site-footer"><div><a class="footer-brand" href="../index.html">系统组 · 研究札记</a><p>记录问题，连接思路，让讨论继续。</p></div><div><a href="https://github.com/haodongwang01/group_meeting">GitHub 源码 ↗</a><p>原创代码 MIT · <a href="../credits.html">内容与图片来源</a></p></div></footer>
+<dialog id="lightbox" aria-label="图片放大查看"><button class="close-dialog" type="button" autofocus aria-label="关闭放大图片">关闭 ×</button><img alt=""><p></p></dialog></body></html>

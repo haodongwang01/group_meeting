@@ -1,5 +1,23 @@
 [
   {
+    "date": "2026-11-19",
+    "issue": "06",
+    "title": "RLinf：强化学习训练中的 GPU 复用与流水调度",
+    "summary": "胡揚嘉分享 RLinf 如何安排生成、推理、训练和仿真，并讨论如何用少量 GPU 验证 rollout 的等待与同步开销。",
+    "tags": [
+      "具身 RL",
+      "资源调度",
+      "RLinf"
+    ],
+    "type": "论文分享 · 系统优化讨论",
+    "source": "《系统组小组会会议总结_20261119.docx》正文及内嵌 RLinf 图 7；实验配置与比较基线参见正文所引论文",
+    "cover": "2026-11-19-rlinf-scheduling.png",
+    "notice": "性能数字来自论文；少卡验证是会上讨论的后续方向。",
+    "speaker": "胡揚嘉",
+    "contribution_label": "后续验证方向",
+    "contributors": "少量 GPU 上的 rollout、设备等待与同步开销"
+  },
+  {
     "date": "2026-11-18",
     "issue": "05",
     "title": "KVDrive PQE 汇报：分层 KV 管理与研究计划",

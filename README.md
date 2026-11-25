@@ -4,7 +4,7 @@
 
 - 网站地址：https://haodongwang01.github.io/group_meeting/
 - 公开仓库：https://github.com/haodongwang01/group_meeting
-- 内容日期：2026-10-15、2026-10-22、2026-11-04、2026-11-05、2026-11-18
+- 内容日期：2026-10-15、2026-10-22、2026-11-04、2026-11-05、2026-11-18、2026-11-19
 
 ## 组员周报
 
@@ -39,6 +39,8 @@ dist/sitemap.xml           站点地图
 ```
 
 ## 新增一期
+
+组员交稿可直接复制[会议总结 Markdown 模板](content/MEETING_TEMPLATE.md)。模板附完整示例句、配图要求和发布前的核对步骤。
 
 1. 新建 `content/YYYY-MM-DD.html`，用具有唯一 `id` 的 `h2`、`h3` 标记章节。正文直接写入 HTML，外部文字必须进行 HTML 转义。
 2. 在 `content/meetings.json` 顶部增加记录，保持日期倒序；补充 `date`、`issue`、`title`、`summary`、`tags`、`type`、`source`、`cover`、`notice`，以及 `speaker`（主讲人）、`contribution_label`（贡献类型）、`contributors`（贡献者）。
