@@ -18,6 +18,7 @@
         <p class="project-question">预测下一步动作时，画面里哪些区域需要重算？</p>
         <p>模型先找出与动作相关的区域，在后续去噪步骤中优先更新这些位置，其余区域复用已有预测。</p>
         <div class="project-links">
+          <a href="https://arxiv.org/abs/2609.38984" aria-label="Sparse-WAM 论文">论文</a>
           <a href="https://rockylix.github.io/Sparse-WAM.github.io/">项目主页</a>
           <a href="https://github.com/Rockylix/Sparse-WAM">代码</a>
           <a href="https://mp.weixin.qq.com/s/REkoMhCXJFzDsWVvNigROw" aria-label="Sparse-WAM 微信报道">微信报道</a>
@@ -34,6 +35,7 @@
         <p class="project-question">长上下文推理时，哪些 KV 缓存值得留在显存里？</p>
         <p>不同层和注意力头对缓存窗口的需求各异。KVDrive 据此分配显存，并安排其余数据的读取，减少解码时等待搬运的时间。</p>
         <div class="project-links">
+          <a href="https://arxiv.org/abs/2605.18071" aria-label="KVDrive 论文">论文</a>
           <a href="https://github.com/linjian-tech/KVDrive-Draw">实验数据与绘图代码</a>
           <a href="meetings/2026-11-18.html">组会札记</a>
           <a href="https://mp.weixin.qq.com/s/sVUqw48VArwh2b1MNmUgLA" aria-label="KVDrive 微信报道">微信报道</a>
@@ -50,6 +52,7 @@
         <p class="project-question">权重量化到 4 bit，机械臂还能叠好杯子吗？</p>
         <p>校准时优先保护对最终动作影响最大的计算。项目主页并排展示了原始模型和量化模型在真机上叠杯、装箱的过程。</p>
         <div class="project-links">
+          <a href="https://arxiv.org/abs/2609.39056" aria-label="SteerQuant 论文">论文</a>
           <a href="https://cathyyw.github.io/Steerquant-Website/">项目主页与真机演示</a>
           <a href="https://github.com/CathyyW/Steerquant">代码</a>
         </div>
