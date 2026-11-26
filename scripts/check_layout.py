@@ -1,4 +1,4 @@
-"""Check the weekly roster and the latest meeting before Pages uploads the site."""
+"""Check project figures, the weekly roster and the latest meeting before publishing."""
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -39,6 +39,21 @@ for (const width of [320, 390]) {
   });
 }
 for (const width of [390, 1280]) {
+  probe(width, '/index.html#sparse-wam', async doc => {
+    const link = doc.querySelector('#sparse-wam figure a.zoom');
+    const img = link.querySelector('img');
+    img.loading = 'eager';
+    await img.decode();
+    if (doc.defaultView.getComputedStyle(img).objectFit !== 'contain' ||
+        img.getBoundingClientRect().width <= 0 || img.currentSrc !== link.href) return false;
+    link.click();
+    const dialog = doc.querySelector('#lightbox');
+    const enlarged = dialog.querySelector('img');
+    await enlarged.decode();
+    const opened = dialog.open && enlarged.currentSrc === link.href;
+    dialog.close();
+    return opened;
+  });
   probe(width, LATEST_MEETING, async doc => {
     const links = [...doc.querySelectorAll('.toc a[href^="#"]')];
     if (!doc.querySelector('.article-header h1') || !links.length ||
@@ -90,7 +105,7 @@ if __name__ == "__main__":
                 "--virtual-time-budget=4000", f"http://127.0.0.1:{server.server_port}/probe",
             ], timeout=40)
             if b'<body data-checked="yes">' not in dom:
-                raise SystemExit("Weekly roster or latest meeting layout failed browser checks")
-            print(f"Verified weekly layout at 320/390 px and {url} at 390/1280 px (TOC, figures, zoom, overflow).")
+                raise SystemExit("Project figure, weekly roster or latest meeting failed browser checks")
+            print(f"Verified weekly layout at 320/390 px and the project figure and {url} at 390/1280 px.")
         finally:
             server.shutdown()
